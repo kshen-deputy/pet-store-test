@@ -1,0 +1,44 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+# VS Code
+.vscode/
+
+# Java
+*.class
+*.log
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Mac OS
+.DS_Store
+
+# Compiled files
+target/
+dist/
+
+# Local configuration
+application-local.properties
+application-local.yml
+
+# Logs
+logs/
+*.log
+
+# Test reports
+test-output/
+reports/
