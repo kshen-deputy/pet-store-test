@@ -1,0 +1,447 @@
+package petstoretest;
+
+import static io.restassured.RestAssured.*;
+
+import static io.restassured.module.jsv.JsonSchemaValidator.matchesJsonSchemaInClasspath;
+import static org.hamcrest.Matchers.*;
+
+import java.io.File;
+import java.util.Arrays;
+
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+
+import lombok.extern.slf4j.Slf4j;
+
+/**
+ * This class is created as part of the following challenge:
+ * 
+ * You have 3 days to complete the following challenge:
+ * Visit the URL: https://petstore.swagger.io/#/
+ * This page provides Swagger documentation for a pet store.
+ * 
+ * Using an API automation framework, build a regression suite
+ * based on the Swagger documentation for the pet endpoint.
+ * 
+ * Provide a README file explaining how to run your code.
+ * 
+ * Requirements:
+ * - Ensure all necessary validations are performed on the responses.
+ * - Once completed, push your code to a feature branch (not the main branch).
+ *   The naming convention for the feature branch should be:
+ *   feature/<YourName-CBATest>
+ * 
+ * Extra Points:
+ * - Run your tests in a CI environment that can be accessed by anyone.
+ */
+@Slf4j
+public class PetStoreTest {
+
+    public static final String baseUrl = "https://petstore.swagger.io/v2";
+    
+    @BeforeAll
+    public static void setup() {
+        baseURI = baseUrl;
+    }
+
+    @Test
+    public void testAddPetValidInput() {
+        log.info("Testing add pet valid input");
+
+        String requestBody = """
+                {
+                    "name": "doggie",
+                    "photoUrls": [
+                        "string"
+                    ]
+                }
+                """;
+
+        given()
+            .contentType("application/json")
+            .body(requestBody)
+        .when()
+            .post("/pet")
+        .then()
+            .statusCode(200)
+            .body(matchesJsonSchemaInClasspath("schemas/pet.json"))
+            .body("name", equalTo("doggie"))
+            .body("photoUrls[0]", equalTo("string"))
+            .body("photoUrls.size()", equalTo(1))
+            .body("id", notNullValue());
+    }
+
+    @Test
+    public void testAddPetInvalidInput() {
+        log.info("Testing add pet invalid input");
+
+        String requestBody = "";
+
+        given()
+            .contentType("application/json")
+            .body(requestBody)
+        .when()
+            .post("/pet")
+        .then()
+            .statusCode(405)
+            .contentType("application/json")
+            .body(matchesJsonSchemaInClasspath("schemas/error.json"))
+            .body("type", equalTo("unknown"))
+            .body("message", equalTo("no data"));
+    }
+
+    @Test
+    public void testGetPetByValidID() {
+        log.info("Testing get pet by ID");
+
+        // Create a pet to get a valid ID
+        String requestBody = """
+                {
+                    "name": "doggie",
+                    "photoUrls": [
+                        "string1",
+                        "string2"
+                    ]
+                }
+                """;
+
+        long petId = given()
+            .contentType("application/json")
+            .body(requestBody)
+        .when()
+            .post("/pet")
+        .then()
+            .statusCode(200)
+            .contentType("application/json")
+            .extract()
+            .body()
+            .jsonPath()
+            .getLong("id"); 
+
+        log.info("Pet ID: {}", petId);
+
+
+        // Get the pet by ID
+        given()
+        .when()
+            .get("/pet/{petId}", petId)
+        .then()
+            .statusCode(200)
+            .body(matchesJsonSchemaInClasspath("schemas/pet.json"))
+            .body("name", equalTo("doggie"))
+            .body("photoUrls", equalTo(Arrays.asList("string1", "string2")))
+            .body("photoUrls.size()", equalTo(2))
+            .body("id", equalTo(petId));
+    }
+
+    @Test
+    public void testGetPetByNonExistID() {
+        log.info("Testing get pet by non-exist ID");
+
+        given()
+        .when()
+            .get("/pet/{petId}", 12345)
+        .then()
+            .statusCode(404)
+            .contentType("application/json")
+            .body(matchesJsonSchemaInClasspath("schemas/error.json"))
+            .body("code", equalTo(1))
+            .body("type", equalTo("error"))
+            .body("message", equalTo("Pet not found"));
+    }
+
+    // This test is failing as it returns "Pet not found" instead of "Invalid ID supplied"
+    @Test
+    public void testGetPetByInvalidID() {
+        log.info("Testing get pet by invalid ID");
+
+        String invalidPetId = "abc";
+
+        given()
+        .when()
+            .get("/pet/{petId}", invalidPetId)
+        .then()
+            .log().all()
+            .statusCode(400)
+            .contentType("application/json")
+            .body(matchesJsonSchemaInClasspath("schemas/error.json"))
+            .body("code", equalTo(1))
+            .body("type", equalTo("unknown"))
+            .body("message", equalTo("Invalid ID supplied"));
+    }
+
+    @Test
+    public void testUploadImage() {
+        log.info("Testing upload image");
+
+        // Create a pet to get a valid ID
+        String requestBody = """
+                {
+                    "name": "doggie",
+                    "photoUrls": [
+                        "string"
+                    ]
+                }
+                """;
+
+        long petId = given()
+            .contentType("application/json")
+            .body(requestBody)
+        .when()
+            .post("/pet")
+        .then()
+            .statusCode(200)
+            .contentType("application/json")
+            .extract()
+            .body()
+            .jsonPath()
+            .getLong("id"); 
+
+        log.info("Pet ID: {}", petId);
+
+        // Upload an image
+        String imageName = "doggie.png";
+        String additonalMetadata = "test";
+        File imageFile = new File(getClass().getClassLoader().getResource("images/" + imageName).getFile());
+        
+        log.info("Uploading image: {}", imageName);
+        
+        given()
+            .contentType("multipart/form-data")
+            .multiPart("additionalMetadata", additonalMetadata)
+            .multiPart("file", imageFile, "image/png")
+        .when()
+            .post("/pet/{petId}/uploadImage", petId)
+        .then()
+            .statusCode(200)
+            .contentType("application/json")
+            .body(matchesJsonSchemaInClasspath("schemas/success.json"))
+            .body("code", equalTo(200))
+            .body("type", equalTo("unknown"))
+            .body("message", matchesPattern("additionalMetadata: " + additonalMetadata + "\\nFile uploaded to ./" + imageName + ", \\d+ bytes"));
+
+        // Verify the update was successful by getting the pet
+        // This step may fail as the uploaded image url is not returned in the response
+        // given()
+        // .when()
+        //     .get("/pet/{petId}", petId)
+        // .then()
+        //     .statusCode(200).log().all()
+        //     .contentType("application/json")
+        //     .body(matchesJsonSchemaInClasspath("schemas/pet.json"))
+        //     .body("name", equalTo("doggie"))
+        //     .body("photoUrls", equalTo(Arrays.asList("string")))
+        //     .body("photoUrls.size()", equalTo(1))
+        //     .body("id", equalTo(petId));
+    }
+
+    // This test is failing at 'sold' status schema validation as one or more of the pets has no name
+    @Test
+    public void testFindPetsByValidStatus() {
+        log.info("Testing find pets by status");
+        String endpoint = "/pet/findByStatus";
+        String[] statuses = {"available", "pending", "sold"};
+
+        // Test each status
+        for (String status : statuses) {
+            log.info("Testing status: {}", status);
+            given()
+                .param("status", status)
+            .when()
+                .get(endpoint)
+            .then()
+                .statusCode(200)
+                .contentType("application/json")
+                .body(matchesJsonSchemaInClasspath("schemas/pets.json"))
+                .body("$.size()", greaterThanOrEqualTo(0));
+        }
+
+        // Test all status
+        given()
+            .param("status", "available,pending,sold")
+        .when()
+            .get(endpoint)
+        .then()
+            .statusCode(200)
+            .contentType("application/json")
+            .body(matchesJsonSchemaInClasspath("schemas/pets.json"))
+            .body("$.size()", greaterThanOrEqualTo(0));
+    }
+
+    // This test is failing as it return status code 200 instead of 400
+    @Test
+    public void testFindPetsByInvalidStatus() {
+        log.info("Testing find pets by invalid status");
+
+        String endpoint = "/pet/findByStatus";
+        String status = "invalid";
+
+        given()
+            .param("status", status)
+        .when()
+            .get(endpoint)
+        .then()
+            .statusCode(400)
+            .contentType("application/json")
+            .body(matchesJsonSchemaInClasspath("schemas/error.json"))
+            .body("type", equalTo("unknown"))
+            .body("message", equalTo("Invalid status value"));
+    }
+
+    @Test
+    public void testUpdatePetWithPUT() {
+        log.info("Testing updatePetWithPUT endpoint");
+
+        // Create a pet to get a valid ID
+        String requestBody = """
+                {
+                    "name": "doggie",
+                    "photoUrls": [
+                        "string"
+                    ]
+                }
+                """;
+
+        long petId = given()
+            .contentType("application/json")
+            .body(requestBody)
+        .when()
+            .post("/pet")
+        .then()
+            .statusCode(200)
+            .contentType("application/json")
+            .extract()
+            .body()
+            .jsonPath()
+            .getLong("id"); 
+
+        log.info("Pet ID: {}", petId);
+
+        // Update the pet name
+        String updatedRequestBody = String.format("""
+                {
+                    "id": %d,
+                    "name": "kitty",
+                    "photoUrls": [
+                        "string"
+                    ]
+                }
+                """, petId);
+
+        given()
+            .contentType("application/json")
+            .body(updatedRequestBody)
+        .when()
+            .put("/pet")
+        .then()
+            .statusCode(200)
+            .contentType("application/json")
+            .body(matchesJsonSchemaInClasspath("schemas/pet.json"))
+            .body("name", equalTo("kitty"))
+            .body("photoUrls[0]", equalTo("string"))
+            .body("photoUrls.size()", equalTo(1))
+            .body("id", equalTo(petId));
+    }
+
+    @Test
+    public void testUpdatePetWithPOST() {
+        log.info("Testing updatePetWithPOST endpoint");
+
+        // Create a pet to get a valid ID
+        String requestBody = """
+                {
+                    "name": "doggie",
+                    "photoUrls": [
+                        "string"
+                    ]
+                }
+                """;
+
+        long petId = given()
+            .contentType("application/json")
+            .body(requestBody)
+        .when()
+            .post("/pet")
+        .then()
+            .statusCode(200)
+            .contentType("application/json")
+            .extract()
+            .body()
+            .jsonPath()
+            .getLong("id");
+
+        log.info("Created pet with ID: {}", petId);
+
+        // Update the pet using POST with form data
+        given()
+            .contentType("application/x-www-form-urlencoded")
+            .formParam("name", "kitty")
+            .formParam("status", "sold")
+        .when()
+            .post("/pet/" + petId)
+        .then()
+            .statusCode(200)
+            .contentType("application/json")
+            .body(matchesJsonSchemaInClasspath("schemas/success.json"));
+
+        // Verify the update was successful by getting the pet
+        given()
+            .pathParam("petId", petId)
+        .when()
+            .get("/pet/{petId}")
+        .then()
+            .statusCode(200)
+            .contentType("application/json")
+            .body(matchesJsonSchemaInClasspath("schemas/pet.json"))
+            .body("name", equalTo("kitty"))
+            .body("status", equalTo("sold"));
+    }
+
+    @Test
+    public void testDeletePet() {
+        log.info("Testing deletePet endpoint");
+
+        // Create a pet to get a valid ID
+        String requestBody = """
+                {
+                    "name": "doggie",
+                    "photoUrls": [
+                        "string"
+                    ]
+                }
+                """;
+
+        long petId = given()
+            .contentType("application/json")
+            .body(requestBody)
+        .when()
+            .post("/pet")
+        .then()
+            .statusCode(200)
+            .contentType("application/json")
+            .extract()
+            .body()
+            .jsonPath()
+            .getLong("id");
+
+        log.info("Created pet with ID: {}", petId);
+
+        // Delete the pet
+        given()
+            .pathParam("petId", petId)
+        .when()
+            .delete("/pet/{petId}")
+        .then()
+            .statusCode(200)
+            .contentType("application/json")
+            .body(matchesJsonSchemaInClasspath("schemas/success.json"));
+
+        // Verify the pet was deleted
+        given()
+            .pathParam("petId", petId)
+        .when()
+            .get("/pet/{petId}")
+        .then()
+            .statusCode(404);
+    }
+}
