@@ -1,6 +1,5 @@
 plugins {
     id 'java'
-    id 'application'
 }
 
 group = 'pet-store-test'
@@ -24,13 +23,11 @@ dependencies {
     testImplementation 'io.rest-assured:json-path:5.5.0'
     testImplementation 'io.rest-assured:json-schema-validator:5.5.0'
 
-    // Logging
-    implementation 'org.slf4j:slf4j-api:2.0.5'
-    implementation 'org.slf4j:slf4j-simple:2.0.5'
+    // Logging for tests
+    testImplementation 'org.slf4j:slf4j-api:2.0.5'
+    testImplementation 'org.slf4j:slf4j-simple:2.0.5'
 
-    // Lombok - requires Java 17
-    compileOnly 'org.projectlombok:lombok:1.18.30'
-    annotationProcessor 'org.projectlombok:lombok:1.18.30'
+    // Lombok for tests
     testCompileOnly 'org.projectlombok:lombok:1.18.30'
     testAnnotationProcessor 'org.projectlombok:lombok:1.18.30'
 
@@ -53,8 +50,4 @@ tasks.withType(Test) {
     systemProperty "org.slf4j.simpleLogger.showDateTime", "true"
     systemProperty "org.slf4j.simpleLogger.dateTimeFormat", "yyyy-MM-dd HH:mm:ss"
     systemProperty "org.slf4j.simpleLogger.logFile", "System.out" 
-}
-
-application {
-    mainClass = 'com.example.HelloWorld'
 }
