@@ -64,6 +64,16 @@ After running the tests, you can find the test reports at:
 build/reports/tests/test/index.html
 ```
 
+## CI
+
+This project uses GitHub Actions for continuous integration. The workflow:
+- Runs on every push to main and pull requests
+- Uses Ubuntu latest with Java 17
+- Executes all tests using Gradle
+- Uploads test reports as artifacts
+
+You can find the test results in the Actions tab of the repository after each run. The workflow configuration is in `.github/workflows/gradle-test.yml`.
+
 ## Dependencies
 
 - REST Assured: API testing framework
