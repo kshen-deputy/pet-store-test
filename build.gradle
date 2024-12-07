@@ -6,14 +6,33 @@ plugins {
 group = 'pet-store-test'
 version = '1.0-SNAPSHOT'
 
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
 repositories {
     mavenCentral()
 }
 
 dependencies {
+    // RestAssured
+    testImplementation 'io.rest-assured:rest-assured:5.5.0'
+    testImplementation 'io.rest-assured:json-path:5.5.0'
+    testImplementation 'io.rest-assured:json-schema-validator:5.5.0'
+
     // Logging
     implementation 'org.slf4j:slf4j-api:2.0.5'
     implementation 'org.slf4j:slf4j-simple:2.0.5'
+
+    // Lombok - requires Java 17
+    compileOnly 'org.projectlombok:lombok:1.18.30'
+    annotationProcessor 'org.projectlombok:lombok:1.18.30'
+    testCompileOnly 'org.projectlombok:lombok:1.18.30'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.30'
 
     // Junit
     testImplementation 'org.junit.jupiter:junit-jupiter:5.9.2'
@@ -21,11 +40,19 @@ dependencies {
 
 test {
     useJUnitPlatform()
+    testLogging {
+        events "passed", "skipped", "failed", "standardOut", "standardError"
+        showStandardStreams = true
+    }
+    outputs.upToDateWhen { false }
 }
 
-java {
-    sourceCompatibility = JavaVersion.VERSION_23
-    targetCompatibility = JavaVersion.VERSION_23
+// Configure logging levels
+tasks.withType(Test) {
+    systemProperty "org.slf4j.simpleLogger.defaultLogLevel", "debug"
+    systemProperty "org.slf4j.simpleLogger.showDateTime", "true"
+    systemProperty "org.slf4j.simpleLogger.dateTimeFormat", "yyyy-MM-dd HH:mm:ss"
+    systemProperty "org.slf4j.simpleLogger.logFile", "System.out" 
 }
 
 application {

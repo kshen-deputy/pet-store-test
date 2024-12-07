@@ -4,7 +4,7 @@ A sample application to test the Pet Store API.
 
 ## Requirements
 
-- Java 23
+- Java 17
 - Gradle (wrapper included)
 
 ## Building the Project
