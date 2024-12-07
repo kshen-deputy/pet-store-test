@@ -2,15 +2,20 @@ package petstoretest;
 
 import static io.restassured.RestAssured.*;
 import static io.restassured.matcher.RestAssuredMatchers.*;
+
+import io.restassured.RestAssured;
+import io.restassured.path.json.JsonPath;
 import static io.restassured.module.jsv.JsonSchemaValidator.matchesJsonSchemaInClasspath;
 import static org.hamcrest.Matchers.*;
 
 import java.io.File;
 import java.util.Arrays;
+import java.util.Map;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import io.restassured.path.json.JsonPath;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -213,23 +218,208 @@ public class PetStoreTest {
     }
 
     @Test
-    public void testFindPetsByStatus() {
+    public void testFindPetsByValidStatus() {
         log.info("Testing findPetsByStatus endpoint");
-        
+        String endpoint = "/pet/findByStatus";
+        String[] statuses = {"available", "pending", "sold"};
+
+        // Test each status
+        for (String status : statuses) {
+            log.info("Testing status: {}", status);
+            given()
+                .param("status", status)
+            .when()
+                .get(endpoint)
+            .then()
+                .statusCode(200)
+                .contentType("application/json")
+                .body(matchesJsonSchemaInClasspath("schemas/pets.json"))
+                .body("$.size()", greaterThanOrEqualTo(0));
+        }
+
+        // Test all status
+        given()
+            .param("status", "available,pending,sold")
+        .when()
+            .get(endpoint)
+        .then()
+            .statusCode(200)
+            .contentType("application/json")
+            .body(matchesJsonSchemaInClasspath("schemas/pets.json"))
+            .body("$.size()", greaterThanOrEqualTo(0));
+    }
+
+    @Test
+    public void testFindPetsByInvalidStatus() {
+        log.info("Testing findPetsByInvalidStatus endpoint");
+
+        String endpoint = "/pet/findByStatus";
+        String status = "invalid";
+
+        given()
+            .param("status", status)
+        .when()
+            .get(endpoint)
+        .then().log().all()
+            .statusCode(400)
+            .contentType("application/json")
+            .body(matchesJsonSchemaInClasspath("schemas/error.json"))
+            .body("type", equalTo("unknown"))
+            .body("message", equalTo("Invalid status value"));
     }
 
     @Test
     public void testUpdatePetWithPUT() {
         log.info("Testing updatePetWithPUT endpoint");
+
+        String requestBody = """
+                {
+                    "name": "doggie",
+                    "photoUrls": [
+                        "string"
+                    ]
+                }
+                """;
+
+        long petId = given()
+            .contentType("application/json")
+            .body(requestBody)
+        .when()
+            .post("/pet")
+        .then().log().all()
+            .statusCode(200)
+            .contentType("application/json")
+            .extract()
+            .body()
+            .jsonPath()
+            .getLong("id"); 
+
+        log.info("Pet ID: {}", petId);
+
+        String updatedRequestBody = String.format("""
+                {
+                    "id": %d,
+                    "name": "kitty",
+                    "photoUrls": [
+                        "string"
+                    ]
+                }
+                """, petId);
+
+        given()
+            .contentType("application/json")
+            .body(updatedRequestBody)
+        .when()
+            .put("/pet")
+        .then()
+            .statusCode(200)
+            .contentType("application/json")
+            .body(matchesJsonSchemaInClasspath("schemas/pet.json"))
+            .body("name", equalTo("kitty"))
+            .body("photoUrls[0]", equalTo("string"))
+            .body("photoUrls.size()", equalTo(1))
+            .body("id", equalTo(petId));
     }
 
     @Test
     public void testUpdatePetWithPOST() {
         log.info("Testing updatePetWithPOST endpoint");
+
+        // Create a pet to get a valid ID
+        String requestBody = """
+                {
+                    "name": "doggie",
+                    "photoUrls": [
+                        "string"
+                    ]
+                }
+                """;
+
+        long petId = given()
+            .contentType("application/json")
+            .body(requestBody)
+        .when()
+            .post("/pet")
+        .then()
+            .statusCode(200)
+            .contentType("application/json")
+            .extract()
+            .body()
+            .jsonPath()
+            .getLong("id");
+
+        log.info("Created pet with ID: {}", petId);
+
+        // Update the pet using POST with form data
+        given()
+            .contentType("application/x-www-form-urlencoded")
+            .formParam("name", "kitty")
+            .formParam("status", "sold")
+        .when()
+            .post("/pet/" + petId)
+        .then()
+            .statusCode(200)
+            .contentType("application/json")
+            .body(matchesJsonSchemaInClasspath("schemas/success.json"));
+
+        // Verify the update was successful by getting the pet
+        given()
+            .pathParam("petId", petId)
+        .when()
+            .get("/pet/{petId}")
+        .then()
+            .statusCode(200)
+            .contentType("application/json")
+            .body(matchesJsonSchemaInClasspath("schemas/pet.json"))
+            .body("name", equalTo("kitty"))
+            .body("status", equalTo("sold"));
     }
 
     @Test
     public void testDeletePet() {
         log.info("Testing deletePet endpoint");
+
+        // Create a pet to get a valid ID
+        String requestBody = """
+                {
+                    "name": "doggie",
+                    "photoUrls": [
+                        "string"
+                    ]
+                }
+                """;
+
+        long petId = given()
+            .contentType("application/json")
+            .body(requestBody)
+        .when()
+            .post("/pet")
+        .then()
+            .statusCode(200)
+            .contentType("application/json")
+            .extract()
+            .body()
+            .jsonPath()
+            .getLong("id");
+
+        log.info("Created pet with ID: {}", petId);
+
+        // Delete the pet
+        given()
+            .pathParam("petId", petId)
+        .when()
+            .delete("/pet/{petId}")
+        .then()
+            .statusCode(200)
+            .contentType("application/json")
+            .body(matchesJsonSchemaInClasspath("schemas/success.json"));
+
+        // Verify the pet was deleted
+        given()
+            .pathParam("petId", petId)
+        .when()
+            .get("/pet/{petId}")
+        .then()
+            .statusCode(404);
     }
 }
