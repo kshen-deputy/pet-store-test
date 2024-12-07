@@ -64,6 +64,8 @@ After running the tests, you can find the test reports at:
 build/reports/tests/test/index.html
 ```
 
+![Test Report Example](docs/images/test_report.png)
+
 ## CI
 
 This project uses GitHub Actions for continuous integration. The workflow:
