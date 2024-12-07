@@ -1,21 +1,16 @@
 package petstoretest;
 
 import static io.restassured.RestAssured.*;
-import static io.restassured.matcher.RestAssuredMatchers.*;
 
-import io.restassured.RestAssured;
-import io.restassured.path.json.JsonPath;
 import static io.restassured.module.jsv.JsonSchemaValidator.matchesJsonSchemaInClasspath;
 import static org.hamcrest.Matchers.*;
 
 import java.io.File;
 import java.util.Arrays;
-import java.util.Map;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import io.restassured.path.json.JsonPath;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -51,7 +46,7 @@ public class PetStoreTest {
 
     @Test
     public void testAddPetValidInput() {
-        log.info("Testing addPet endpoint valid input");
+        log.info("Testing add pet valid input");
 
         String requestBody = """
                 {
@@ -78,7 +73,7 @@ public class PetStoreTest {
 
     @Test
     public void testAddPetInvalidInput() {
-        log.info("Testing addPet endpoint invalid input");
+        log.info("Testing add pet invalid input");
 
         String requestBody = "";
 
@@ -97,8 +92,9 @@ public class PetStoreTest {
 
     @Test
     public void testGetPetByValidID() {
-        log.info("Testing get pet by ID endpoint");
+        log.info("Testing get pet by ID");
 
+        // Create a pet to get a valid ID
         String requestBody = """
                 {
                     "name": "doggie",
@@ -124,6 +120,8 @@ public class PetStoreTest {
 
         log.info("Pet ID: {}", petId);
 
+
+        // Get the pet by ID
         given()
         .when()
             .get("/pet/{petId}", petId)
@@ -152,28 +150,31 @@ public class PetStoreTest {
             .body("message", equalTo("Pet not found"));
     }
 
+    // This test is failing as it returns "Pet not found" instead of "Invalid ID supplied"
     @Test
     public void testGetPetByInvalidID() {
         log.info("Testing get pet by invalid ID");
 
-        int invalidPetId = -1;
+        String invalidPetId = "abc";
 
         given()
         .when()
             .get("/pet/{petId}", invalidPetId)
         .then()
-            .statusCode(404).log().all()
+            .log().all()
+            .statusCode(400)
             .contentType("application/json")
             .body(matchesJsonSchemaInClasspath("schemas/error.json"))
-            .body("code", equalTo(404))
+            .body("code", equalTo(1))
             .body("type", equalTo("unknown"))
             .body("message", equalTo("Invalid ID supplied"));
     }
 
     @Test
     public void testUploadImage() {
-        log.info("Testing uploadImage endpoint");
+        log.info("Testing upload image");
 
+        // Create a pet to get a valid ID
         String requestBody = """
                 {
                     "name": "doggie",
@@ -189,7 +190,7 @@ public class PetStoreTest {
         .when()
             .post("/pet")
         .then()
-            .statusCode(200).log().all()
+            .statusCode(200)
             .contentType("application/json")
             .extract()
             .body()
@@ -198,9 +199,12 @@ public class PetStoreTest {
 
         log.info("Pet ID: {}", petId);
 
+        // Upload an image
         String imageName = "doggie.png";
         String additonalMetadata = "test";
         File imageFile = new File(getClass().getClassLoader().getResource("images/" + imageName).getFile());
+        
+        log.info("Uploading image: {}", imageName);
         
         given()
             .contentType("multipart/form-data")
@@ -209,17 +213,32 @@ public class PetStoreTest {
         .when()
             .post("/pet/{petId}/uploadImage", petId)
         .then()
-            .statusCode(200).log().all()
+            .statusCode(200)
             .contentType("application/json")
             .body(matchesJsonSchemaInClasspath("schemas/success.json"))
             .body("code", equalTo(200))
             .body("type", equalTo("unknown"))
             .body("message", matchesPattern("additionalMetadata: " + additonalMetadata + "\\nFile uploaded to ./" + imageName + ", \\d+ bytes"));
+
+        // Verify the update was successful by getting the pet
+        // This step may fail as the uploaded image url is not returned in the response
+        // given()
+        // .when()
+        //     .get("/pet/{petId}", petId)
+        // .then()
+        //     .statusCode(200).log().all()
+        //     .contentType("application/json")
+        //     .body(matchesJsonSchemaInClasspath("schemas/pet.json"))
+        //     .body("name", equalTo("doggie"))
+        //     .body("photoUrls", equalTo(Arrays.asList("string")))
+        //     .body("photoUrls.size()", equalTo(1))
+        //     .body("id", equalTo(petId));
     }
 
+    // This test is failing at 'sold' status schema validation as one or more of the pets has no name
     @Test
     public void testFindPetsByValidStatus() {
-        log.info("Testing findPetsByStatus endpoint");
+        log.info("Testing find pets by status");
         String endpoint = "/pet/findByStatus";
         String[] statuses = {"available", "pending", "sold"};
 
@@ -249,9 +268,10 @@ public class PetStoreTest {
             .body("$.size()", greaterThanOrEqualTo(0));
     }
 
+    // This test is failing as it return status code 200 instead of 400
     @Test
     public void testFindPetsByInvalidStatus() {
-        log.info("Testing findPetsByInvalidStatus endpoint");
+        log.info("Testing find pets by invalid status");
 
         String endpoint = "/pet/findByStatus";
         String status = "invalid";
@@ -260,7 +280,7 @@ public class PetStoreTest {
             .param("status", status)
         .when()
             .get(endpoint)
-        .then().log().all()
+        .then()
             .statusCode(400)
             .contentType("application/json")
             .body(matchesJsonSchemaInClasspath("schemas/error.json"))
@@ -272,6 +292,7 @@ public class PetStoreTest {
     public void testUpdatePetWithPUT() {
         log.info("Testing updatePetWithPUT endpoint");
 
+        // Create a pet to get a valid ID
         String requestBody = """
                 {
                     "name": "doggie",
@@ -286,7 +307,7 @@ public class PetStoreTest {
             .body(requestBody)
         .when()
             .post("/pet")
-        .then().log().all()
+        .then()
             .statusCode(200)
             .contentType("application/json")
             .extract()
@@ -296,6 +317,7 @@ public class PetStoreTest {
 
         log.info("Pet ID: {}", petId);
 
+        // Update the pet name
         String updatedRequestBody = String.format("""
                 {
                     "id": %d,
